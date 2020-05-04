@@ -153,7 +153,7 @@ class Worker():
 
                     # Periodically save gifs of episodes, model parameters, and summary statistics.
                     if episode_count % 5 == 0 and episode_count != 0:
-                        if self.name == 'worker_0' and episode_count % 250 == 0:
+                        if self.name == 'worker_0' and episode_count % 10 == 0:
                             save_gif(episode_frames, self.s_shape, episode_count, 'a3c')
                         if episode_count % 250 == 0 and self.name == 'worker_0':
                             saver.save(sess, self.model_path + '/model-' + str(episode_count) + '.cptk')
@@ -182,8 +182,8 @@ class Worker():
 if __name__ == '__main__':
     projects = [3095]
     inbounds, blocks, days = import_blocks_schedule('../../environment/data/191227_납기일 추가.xlsx', projects, backward=True)
-    average_load = int(sum(work.lead_time for work in inbounds) / days) + 1
-    print(average_load)
+    #average_load = int(sum(work.lead_time for work in inbounds) / days) + 1
+    #print(average_load)
 
     max_episode_length = 300
     max_episode = 10000
@@ -218,7 +218,7 @@ if __name__ == '__main__':
         # Create worker classes
         for i in range(num_workers):
             locating = Scheduling(num_days=days, window_days=window_days, num_blocks=blocks,
-                                  inbound_works=inbounds, backward=True, load=average_load, display_env=False)
+                                  inbound_works=inbounds, backward=True, display_env=False)
             workers.append(Worker(locating, i, s_shape, a_size, trainer, model_path, summary_path, global_episodes))
         saver = tf.train.Saver(max_to_keep=5)
 

@@ -26,8 +26,6 @@ class Scheduling(object):
             self._location = \
                 self.inbound_works[self._ongoing].latest_finish - self.inbound_works[self._ongoing].lead_time
         self.works = [self._location]
-        self.inbound_works[self._ongoing].start_date_lr = self._location
-        # self.yard = np.full([max_stack, num_pile], self.empty)
         if display_env:
             display = LocatingDisplay(self, num_days, self.num_block)
             display.game_loop_from_space()
@@ -39,7 +37,7 @@ class Scheduling(object):
         current_work = self.inbound_works[self._ongoing]
         if action == self.select_action:  # 일정 확정
             self._ongoing += 1
-            reward = self._calculate_reward()
+            reward = self._calculate_reward_by_local_deviation()
             if self._ongoing == self.num_work:
                 done = True
             else:
@@ -50,10 +48,11 @@ class Scheduling(object):
                     else:
                         self._location = 0
                 else:  # 다음 액티비티가 동일 블록인 경우
+                    next_work.set_constraint(self.inbound_works[:self._ongoing], self.works, backward=self.backward)
                     if self.backward:
-                        self._location -= next_work.lead_time
+                        self._location = next_work.latest_finish - next_work.lead_time
                     else:
-                        self._location += current_work.lead_time
+                        self._location = next_work.earlist_start + 1
                     self._location = min(self.num_days - next_work.lead_time, self._location)
                 self.works.append(self._location)
         else:  # 일정 이동
@@ -86,26 +85,15 @@ class Scheduling(object):
 
     def get_state(self):
         state = np.full([self.num_block, self.num_days], 0)
-        moving = 1
-        confirmed = 2
-        constraint = 3
         ongoing_location = self.works[-1]
         ongoing_block = self.inbound_works[-1].block
         ongoing_leadtime = self.inbound_works[-1].lead_time
         for i, location in enumerate(self.works):
             if self._ongoing == i:
-                cell = moving
                 ongoing_location = location
                 ongoing_block = self.inbound_works[i].block
                 ongoing_leadtime = self.inbound_works[i].lead_time
-            else:
-                cell = confirmed
-            if self.inbound_works[i].earliest_start != -1:
-                state[self.inbound_works[i].block, self.inbound_works[i].earliest_start] = constraint
-            if self.inbound_works[i].latest_finish != -1:
-                state[self.inbound_works[i].block, self.inbound_works[i].latest_finish] = constraint
-            for j in range(self.inbound_works[i].lead_time):
-                state[self.inbound_works[i].block, location + j] = cell
+            state[self.inbound_works[i].block, location:location + self.inbound_works[i].lead_time] = self.inbound_works[i].work_load_per_day
         left = max(0, int(ongoing_location + ongoing_leadtime / 2 - self.window_days[0] / 2))
         left = min(left, self.num_days - self.window_days[0])
         top = max(0, int(ongoing_block - self.window_days[1] / 2))
@@ -138,27 +126,17 @@ class Scheduling(object):
 
     def _calculate_reward_by_deviation(self):
         state = self.get_state()
-        state[state == 1] = 0
-        state[state == 2] = 1
-        state[state == 3] = 0
         loads = np.sum(state, axis=0)
-        zeros = np.full(loads.shape, 0)
-        #deviation = ((loads - zeros) ** 2).mean(axis=0)
         deviation = max(0.2, float(np.std(loads)))
-        #deviation = max(0.2, deviation)
         return 1 / deviation
 
     def _calculate_reward_by_local_deviation(self):
         state = self.get_state()
-        state[state == 1] = 0
-        state[state == 2] = 1
-        state[state == 3] = 0
-        last_work = self.works[-2]
+        last_work = self.works[-1]
         lead_time = self.inbound_works[self._ongoing - 1].lead_time
         loads = np.sum(state, axis=0)
         loads_last_work = loads[last_work:last_work + lead_time]
-        #deviation = (loads_last_work - np.mean(loads)).mean()
-        deviation = max(0.2, float(np.std(loads_last_work)))
+        deviation = deviation = max(0.2, float(np.std(loads_last_work)))
         return 1 / deviation
 
 

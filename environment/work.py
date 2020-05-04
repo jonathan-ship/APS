@@ -3,24 +3,37 @@ import copy
 import pandas as pd
 import numpy as np
 
-from random import randint
 from PIL import Image, ImageDraw, ImageFont
 
 blocks = None
 days = None
 
 class Work(object):
-    def __init__(self, work_id=None, block=None, start_date=None, finish_date=None, lead_time=1, earliest_start=-1, latest_finish=-1, max_days=4):
+    def __init__(self, work_id=None, block=None, block_stage=None, work_load=None, lead_time=1, earliest_start=-1, latest_finish=-1):
         self.work_id = str(work_id)
         self.block = block
-        self.start_date_plan = start_date
-        self.finish_date_plan = finish_date
+        self.block_stage = block_stage
+        self.work_load = work_load
+        self.work_load_per_day = work_load/lead_time
         self.earliest_start = earliest_start
         self.latest_finish = latest_finish
-        if lead_time == -1:
-            self.lead_time = randint(1, 1 + max_days // 3)
+        self.lead_time = lead_time
+
+    def set_constraint(self, inbound_works, locations, backward=True):
+        if backward:
+            update_latest_finish = self.latest_finish
+            for work, location in zip(inbound_works, locations):
+                if self.block == work.block and self.block_stage != work.block_stage:
+                    if location < update_latest_finish:
+                        update_latest_finish = location
+            self.latest_finish = update_latest_finish
         else:
-            self.lead_time = lead_time
+            update_earlist_start = self.earliest_start
+            for work, location in zip(inbound_works, locations):
+                if self.block == work.block and self.block_stage != work.block_stage:
+                    if location + work.lead_time - 1 > update_earlist_start:
+                        update_earlist_start = location + work.lead_time - 1
+            self.earliest_start = update_earlist_start
 
 
 def import_blocks_schedule(filepath, projects, backward=True):
@@ -45,7 +58,7 @@ def import_blocks_schedule(filepath, projects, backward=True):
 
     works = []
     block = 0
-    max_days = df_schedule['납기일'].max() + 1
+    max_days = df_schedule['납기일'].max()
 
     while len(df_schedule) != 0:
         first_row = df_schedule.loc[0]
@@ -56,32 +69,29 @@ def import_blocks_schedule(filepath, projects, backward=True):
             if len(temp) == 1:
                 works.append(Work(work_id=temp.loc[0]['액티비티코드'],
                                   block=block,
-                                  start_date=temp.loc[0]['계획착수일'],
-                                  finish_date=temp.loc[0]['계획완료일'],
+                                  block_stage=temp.loc[0]['블록단계'],
+                                  work_load=temp.loc[0]['계획공수'],
                                   lead_time=temp.loc[0]['계획완료일'] - temp.loc[0]['계획착수일'] + 1,
-                                  latest_finish=temp.loc[0]['납기일'],
-                                  max_days=max_days))
+                                  latest_finish=temp.loc[0]['납기일']))
                 temp.drop([0], inplace=True)
                 temp.reset_index(drop=True, inplace=True)
             else:
                 if temp.loc[0]['계획착수일'] != temp.loc[1]['계획착수일']:
                     works.append(Work(work_id=temp.loc[0]['액티비티코드'],
                                       block=block,
-                                      start_date=temp.loc[0]['계획착수일'],
-                                      finish_date=temp.loc[0]['계획완료일'],
+                                      block_stage=temp.loc[0]['블록단계'],
+                                      work_load=temp.loc[0]['계획공수'],
                                       lead_time=temp.loc[0]['계획완료일'] - temp.loc[0]['계획착수일'] + 1,
-                                      latest_finish=temp.loc[0]['납기일'],
-                                      max_days=max_days))
+                                      latest_finish=temp.loc[0]['납기일']))
                     temp.drop([0], inplace=True)
                     temp.reset_index(drop=True, inplace=True)
                 else:
                     works.append(Work(work_id=temp.loc[0]['액티비티코드'] + temp.loc[1]['액티비티코드'][-4:],
                                       block=block,
-                                      start_date=temp.loc[0]['계획착수일'],
-                                      finish_date=temp.loc[0]['계획완료일'],
+                                      block_stage=temp.loc[0]['블록단계'],
+                                      work_load=temp.loc[0]['계획공수'] + temp.loc[1]['계획공수'],
                                       lead_time=temp.loc[0]['계획완료일'] - temp.loc[0]['계획착수일'] + 1,
-                                      latest_finish=temp.loc[0]['납기일'],
-                                      max_days=max_days))
+                                      latest_finish=temp.loc[0]['납기일']))
                     temp.drop([0, 1], inplace=True)
                     temp.reset_index(drop=True, inplace=True)
 
@@ -159,7 +169,7 @@ def export_blocks_schedule(file_path, inbound_works, locations):
 
 
 if __name__ == '__main__':
-    inbounds, blocks, days = import_blocks_schedule('../environment/data/191227_납기일 추가.xlsx', [2962], backward=True)
-    print(len(inbounds))
+    inbounds, blocks, days = import_blocks_schedule('../environment/data/191227_납기일 추가.xlsx', [3095], backward=True)
+    print(inbounds[0].block)
     print(blocks)
     print(days)

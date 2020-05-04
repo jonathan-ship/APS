@@ -9,7 +9,7 @@ def save_gif(frames, frame_shape, episode, rl='dqn'):
     height, width = frame_shape[0], frame_shape[1]
     images = np.reshape(np.array(frames), [len(frames), height, width])
     if images.shape[1] != 3:
-        images = color_frame(images)
+        images = color_frame_continuous(images)
     big_images = []
     for image in images:
         big_images.append(scipy.misc.imresize(image, [height * 30, width * 30], interp='nearest'))
@@ -117,8 +117,9 @@ def color_frame_continuous(images, dim=2):
         for k in range(len(images)):
             for i in range(images.shape[1]):
                 for j in range(images.shape[2]):
-                    if images[k, i, j] == -1.0:
+                    if images[k, i, j] == 0.0:
                         colored_images[k, i, j] = [0, 0, 0]
                     else:
-                        colored_images[k, i, j] = [255, min(255, 0.5 * 255 * images[k, i, j]), 0]
+                        grey = max(0, 255 - 0.005 * 255 * images[k, i, j])
+                        colored_images[k, i, j] = [grey, grey, grey]
     return colored_images
