@@ -3,21 +3,23 @@ import copy
 import pandas as pd
 import numpy as np
 
+from agent.a3c.helper import color_frame_continuous
 from PIL import Image, ImageDraw, ImageFont
 
-blocks = None
-days = None
-
 class Work(object):
-    def __init__(self, work_id=None, block=None, block_stage=None, work_load=None, lead_time=1, earliest_start=-1, latest_finish=-1):
+    def __init__(self, work_id=None, block=None, block_stage=None, work_load=None, initial_start=None, initial_finish=None, lead_time=1, earliest_start=-1, latest_finish=-1):
         self.work_id = str(work_id)
         self.block = block
         self.block_stage = block_stage
         self.work_load = work_load
+        self.initial_start = initial_start
+        self.initial_finish = initial_finish
+        self.rl_start = None
+        self.rl_finish = None
+        self.lead_time = lead_time
         self.work_load_per_day = work_load/lead_time
         self.earliest_start = earliest_start
         self.latest_finish = latest_finish
-        self.lead_time = lead_time
 
     def set_constraint(self, inbound_works, locations, backward=True):
         if backward:
@@ -34,6 +36,10 @@ class Work(object):
                     if location + work.lead_time - 1 > update_earlist_start:
                         update_earlist_start = location + work.lead_time - 1
             self.earliest_start = update_earlist_start
+
+    def set_location(self, location):
+        self.rl_start = location
+        self.rl_finish = self.rl_start + self.lead_time - 1
 
 
 def import_blocks_schedule(filepath, projects, backward=True):
@@ -72,6 +78,8 @@ def import_blocks_schedule(filepath, projects, backward=True):
                                   block_stage=temp.loc[0]['블록단계'],
                                   work_load=temp.loc[0]['계획공수'],
                                   lead_time=temp.loc[0]['계획완료일'] - temp.loc[0]['계획착수일'] + 1,
+                                  initial_start=temp.loc[0]['계획착수일'],
+                                  initial_finish=temp.loc[0]['계획완료일'],
                                   latest_finish=temp.loc[0]['납기일']))
                 temp.drop([0], inplace=True)
                 temp.reset_index(drop=True, inplace=True)
@@ -82,6 +90,8 @@ def import_blocks_schedule(filepath, projects, backward=True):
                                       block_stage=temp.loc[0]['블록단계'],
                                       work_load=temp.loc[0]['계획공수'],
                                       lead_time=temp.loc[0]['계획완료일'] - temp.loc[0]['계획착수일'] + 1,
+                                      initial_start=temp.loc[0]['계획착수일'],
+                                      initial_finish=temp.loc[0]['계획완료일'],
                                       latest_finish=temp.loc[0]['납기일']))
                     temp.drop([0], inplace=True)
                     temp.reset_index(drop=True, inplace=True)
@@ -91,6 +101,8 @@ def import_blocks_schedule(filepath, projects, backward=True):
                                       block_stage=temp.loc[0]['블록단계'],
                                       work_load=temp.loc[0]['계획공수'] + temp.loc[1]['계획공수'],
                                       lead_time=temp.loc[0]['계획완료일'] - temp.loc[0]['계획착수일'] + 1,
+                                      initial_start=temp.loc[0]['계획착수일'],
+                                      initial_finish=temp.loc[0]['계획완료일'],
                                       latest_finish=temp.loc[0]['납기일']))
                     temp.drop([0, 1], inplace=True)
                     temp.reset_index(drop=True, inplace=True)
@@ -99,71 +111,42 @@ def import_blocks_schedule(filepath, projects, backward=True):
         df_schedule.reset_index(drop=True, inplace=True)
         block += 1
 
-    global blocks
-    blocks = block
-    global days
-    days = max_days
-
     return works, block, max_days
 
 
-def export_blocks_schedule(file_path, inbound_works, locations):
-    schedule_plan = np.full([blocks, days], 0)
-    schedule_rl = np.full([blocks, days], 0)
+def export_blocks_schedule(file_path, inbound_works, block, max_day):
+    schedule_initial = np.full([block, max_day], 0)
+    schedule_rl = np.full([block, max_day], 0)
 
-    for work, location in zip(inbound_works, locations):
-        schedule_plan[work.block, work.start_date_plan:(work.finish_date_plan + 1)] += 1
-        schedule_plan[work.block, work.latest_finish] = -1
-        schedule_rl[work.block, location:location + work.lead_time] += 1
-        schedule_rl[work.block, work.latest_finish] = -1
+    for work in inbound_works:
+        schedule_initial[work.block, work.initial_start:(work.initial_finish + 1)] = work.work_load_per_day
+        schedule_rl[work.block, work.rl_start:(work.rl_finish + 1)] = work.work_load_per_day
 
-    s_plan = copy.copy(schedule_plan)
-    s_rl = copy.copy(schedule_rl)
-    s_plan[s_plan == -1] = 0
-    s_rl[s_rl == -1] = 0
+    loads_inital = np.sum(schedule_initial, axis=0)
+    loads_rl = np.sum(schedule_rl, axis=0)
+    index_initial = (np.where(loads_inital != 0))[0]
+    index_rl = (np.where(loads_rl != 0))[0]
 
-    loads_plan = np.sum(s_plan, axis=0)
-    loads_rl = np.sum(s_rl, axis=0)
-    start_plan = (np.where(loads_plan != 0))[0]
-    start_rl = (np.where(loads_rl != 0))[0]
+    deviation_inital = np.std(loads_inital[index_initial[0]:(index_initial[-1] + 1)])
+    deviation_rl = np.std(loads_rl[index_rl[0]:(index_rl[-1] + 1)])
 
-    deviation_plan = np.std(loads_plan[start_plan[0]:(start_plan[-1] + 1)])
-    deviation_rl = np.std(loads_rl[start_rl[0]:(start_rl[-1] + 1)])
+    image_initial = scipy.misc.imresize(color_frame_continuous(np.array([schedule_initial]))[0], [block * 30, max_day * 30], interp='nearest')
+    image_rl = scipy.misc.imresize(color_frame_continuous(np.array([schedule_rl]))[0], [block * 30, max_day * 30], interp='nearest')
 
-    image_plan = np.zeros([blocks, days, 3])
-    image_rl = np.zeros([blocks, days, 3])
-
-    schedule_plan[schedule_plan > 0] = 1
-    schedule_rl[schedule_rl > 0] = 1
-
-    color_map = {
-        0: [0, 0, 0],  # black
-        1: [0, 0, 255],  # blue
-        -1: [255, 0, 0],  # red
-    }
-
-    for i in range(blocks):
-        for j in range(days):
-            image_plan[i, j] = color_map[int(schedule_plan[i, j])]
-            image_rl[i, j] = color_map[int(schedule_rl[i, j])]
-
-    image_plan = scipy.misc.imresize(image_plan, [blocks * 30, days * 30], interp='nearest')
-    image_rl = scipy.misc.imresize(image_rl, [blocks * 30, days * 30], interp='nearest')
-
-    image_plan = Image.fromarray(image_plan.astype('uint8'), 'RGB')
+    image_inital = Image.fromarray(image_initial.astype('uint8'), 'RGB')
     image_rl = Image.fromarray(image_rl.astype('uint8'), 'RGB')
 
-    full_width = days * 30 + 2 * 30
-    full_height = blocks * 30 * 2 + 3 * 10 * 30
+    full_width = max_day * 30 + 2 * 30
+    full_height = block * 30 * 2 + 3 * 10 * 30
 
     image = Image.new('RGB', (full_width, full_height), 'white')
-    image.paste(im=image_plan, box=(30, 10 * 30))
-    image.paste(im=image_rl, box=(30, 2 * 10 * 30 + blocks * 30))
+    image.paste(im=image_inital, box=(30, 10 * 30))
+    image.paste(im=image_rl, box=(30, 2 * 10 * 30 + block * 30))
 
     draw = ImageDraw.Draw(image)
     font = ImageFont.truetype('arial', 150)
-    draw.text((30, 3 * 30),'scheule_plan --- deviation: {:.2f}'.format(deviation_plan), (0, 0, 0), font)
-    draw.text((30, 13 * 30 + blocks * 30),'schedule_rl --- deviation: {:.2f}'.format(deviation_rl), (0, 0, 0), font)
+    draw.text((30, 3 * 30),'scheule_inital --- deviation: {:.2f}'.format(deviation_inital), (0, 0, 0), font)
+    draw.text((30, 13 * 30 + block * 30),'schedule_rl --- deviation: {:.2f}'.format(deviation_rl), (0, 0, 0), font)
 
     image.save(file_path + '/result.png')
 

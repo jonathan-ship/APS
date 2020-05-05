@@ -71,6 +71,9 @@ class Scheduling(object):
         next_state = self.get_state().flatten()
         if self.stage == 300:
             done = True
+        if done:
+            for i in range(len(self.works)):
+                self.inbound_works[i].set_location(self.works[i])
         return next_state, reward, done
 
     def reset(self):
