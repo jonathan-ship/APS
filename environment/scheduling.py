@@ -106,25 +106,18 @@ class Scheduling(object):
 
     def _calculate_reward(self):
         state = self.get_state()
-        state[state == 1] = 0
-        state[state == 2] = 1
-        state[state == 3] = 0
-        #loads = np.sum(state, axis=0)
         last_work = self.works[-1]
         lead_time = self.inbound_works[self._ongoing - 1].lead_time
         loads = np.sum(state, axis=0)
         loads_last_work = loads[last_work:last_work + lead_time]
-        score1 = 2  # load가 1인 날짜에 부여하는 점수
-        score2 = 1 # load가 2인 날짜에 부여하는 점수
-        score3 = -1
+        score1 = 1
+        score2 = -1
         reward = 0
         for load in loads_last_work:
-            if load == self.load - 1:
+            if load <= self.load:
                 reward += score1
-            elif load == self.load:
-                reward += score2
             elif load > self.load:
-                reward += score3
+                reward += score2
         return reward
 
     def _calculate_reward_by_deviation(self):

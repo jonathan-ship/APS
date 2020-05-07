@@ -10,7 +10,7 @@ from environment.work import *
 if __name__ == '__main__':
     projects = [2962, 3086, 3095]
     inbounds, blocks, days = import_blocks_schedule('../../environment/data/191227_납기일 추가.xlsx', projects, backward=True)
-    #average_load = int(sum(work.lead_time for work in inbounds) / days) + 1
+    average_load = sum(work.work_load for work in inbounds) / days
 
     window_days = (40, 10)
     s_shape = (window_days[1], window_days[0])
@@ -23,7 +23,7 @@ if __name__ == '__main__':
         os.makedirs(test_path)
 
     env = Scheduling(num_days=days, window_days=window_days, num_blocks=blocks,
-                     inbound_works=inbounds, backward=True, display_env=False)
+                     inbound_works=inbounds, load=average_load, backward=True, display_env=False)
 
     tf.reset_default_graph()
     with tf.Session() as sess:
