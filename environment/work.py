@@ -143,14 +143,20 @@ class SchedulingManager(object):
                 for idx in indices:
                     if row['relation'] == 'FS':
                         self.works[idx].earliest_start = self.works[ongoing].start + self.works[ongoing].lead_time
+                        self.works[idx].latest_finish = self.works[ongoing].start + self.works[ongoing].lead_time + \
+                                                        self.works[idx].lead_time + 4
                     elif row['relation'] == 'FF':
-                        self.works[idx].earliest_start = self.works[ongoing].start + self.works[ongoing].lead_time - self.works[idx].lead_time
+                        self.works[idx].earliest_start = self.works[ongoing].start + self.works[ongoing].lead_time - \
+                                                         self.works[idx].lead_time
+                        self.works[idx].latest_finish = self.works[ongoing].start + self.works[idx].lead_time - 1
             elif self.schedule.loc[ongoing, '공정'] == row['activityB']:
                 indices = ongoing_block_group[ongoing_block_group['공정'] == row['activityA']].index.values
                 for idx in indices:
                     if row['relation'] == 'FS':
+                        self.works[idx].earliest_start = self.works[ongoing].start - self.works[idx].lead_time - 5
                         self.works[idx].latest_finish = self.works[ongoing].start - 1
                     elif row['relation'] == 'FF':
+                        self.works[idx].earliest_start = self.works[ongoing].start
                         self.works[idx].latest_finish = self.works[ongoing].start + self.works[ongoing].lead_time - 1
 
     def reset_schedule(self):
@@ -164,43 +170,6 @@ class SchedulingManager(object):
                     self.works[i].start = self.works[i].latest_finish - self.works[i].lead_time + 1 if i == 0 else None
                 else:
                     self.works[i].start = 0 if i == 0 else None
-
-
-def export_blocks_schedule(file_path, inbound_works, block, max_day):
-    schedule_initial = np.full([block, max_day], 0)
-    schedule_rl = np.full([block, max_day], 0)
-
-    for work in inbound_works:
-        schedule_initial[work.block, work.initial_start:(work.initial_finish + 1)] = work.work_load_per_day
-        schedule_rl[work.block, work.rl_start:(work.rl_finish + 1)] = work.work_load_per_day
-
-    loads_inital = np.sum(schedule_initial, axis=0)
-    loads_rl = np.sum(schedule_rl, axis=0)
-    index_initial = (np.where(loads_inital != 0))[0]
-    index_rl = (np.where(loads_rl != 0))[0]
-
-    deviation_inital = np.std(loads_inital[index_initial[0]:(index_initial[-1] + 1)])
-    deviation_rl = np.std(loads_rl[index_rl[0]:(index_rl[-1] + 1)])
-
-    image_initial = scipy.misc.imresize(color_frame_continuous(np.array([schedule_initial]))[0], [block * 30, max_day * 30], interp='nearest')
-    image_rl = scipy.misc.imresize(color_frame_continuous(np.array([schedule_rl]))[0], [block * 30, max_day * 30], interp='nearest')
-
-    image_inital = Image.fromarray(image_initial.astype('uint8'), 'RGB')
-    image_rl = Image.fromarray(image_rl.astype('uint8'), 'RGB')
-
-    full_width = max_day * 30 + 2 * 30
-    full_height = block * 30 * 2 + 3 * 10 * 30
-
-    image = Image.new('RGB', (full_width, full_height), 'white')
-    image.paste(im=image_inital, box=(30, 10 * 30))
-    image.paste(im=image_rl, box=(30, 2 * 10 * 30 + block * 30))
-
-    draw = ImageDraw.Draw(image)
-    font = ImageFont.truetype('arial', 150)
-    draw.text((30, 3 * 30),'scheule_inital --- deviation: {:.2f}'.format(deviation_inital), (0, 0, 0), font)
-    draw.text((30, 13 * 30 + block * 30),'schedule_rl --- deviation: {:.2f}'.format(deviation_rl), (0, 0, 0), font)
-
-    image.save(file_path + '/result.png')
 
 
 if __name__ == '__main__':

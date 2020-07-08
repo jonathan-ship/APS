@@ -212,6 +212,8 @@ if __name__ == '__main__':
         master_network = AC_Network(s_shape, a_size, 'global', None)  # Generate global network
         num_workers = multiprocessing.cpu_count()  # Set workers to number of available CPU threads
         workers = []
+        if num_workers > 8:
+            num_workers = 8
         # Create worker classes
         for i in range(num_workers):
             scheduling_manager = SchedulingManager('../../environment/data/191227_납기일 추가.xlsx', projects, backward=True)
