@@ -143,12 +143,13 @@ class SchedulingManager(object):
                 for idx in indices:
                     if row['relation'] == 'FS':
                         self.works[idx].earliest_start = self.works[ongoing].start + self.works[ongoing].lead_time
-                        self.works[idx].latest_finish = self.works[ongoing].start + self.works[ongoing].lead_time + \
-                                                        self.works[idx].lead_time + 4
+                        self.works[idx].latest_finish = min(self.works[ongoing].start + self.works[ongoing].lead_time +
+                                                            self.works[idx].lead_time + 4, self.works[idx].latest_finish)
                     elif row['relation'] == 'FF':
                         self.works[idx].earliest_start = self.works[ongoing].start + self.works[ongoing].lead_time - \
                                                          self.works[idx].lead_time
-                        self.works[idx].latest_finish = self.works[ongoing].start + self.works[idx].lead_time - 1
+                        self.works[idx].latest_finish = min(self.works[ongoing].start + self.works[idx].lead_time - 1,
+                                                            self.works[idx].latest_finish)
             elif self.schedule.loc[ongoing, '공정'] == row['activityB']:
                 indices = ongoing_block_group[ongoing_block_group['공정'] == row['activityA']].index.values
                 for idx in indices:

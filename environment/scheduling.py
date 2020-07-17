@@ -45,12 +45,6 @@ class Scheduling(object):
         next_state = self.get_state().flatten()
         if self.stage == 50000:
             done = True
-        '''
-        if current_work.start < current_work.earliest_start \
-                or current_work.start + current_work.lead_time > current_work.latest_finish:
-            done = True
-            reward = -2
-        '''
         if not done:
             self.scheduling_manager.set_constraint(self._ongoing)
         return next_state, reward, done
@@ -67,12 +61,14 @@ class Scheduling(object):
         ongoing_block = self.scheduling_manager.works[-1].block_group_idx
         ongoing_leadtime = self.scheduling_manager.works[-1].lead_time
         for i, work in enumerate(self.scheduling_manager.works):
-            state[work.block_group_idx, work.start:work.start + work.lead_time] = work.work_load_per_day
+            if work.start:
+                state[work.block_group_idx, work.start:work.start + work.lead_time] = work.work_load_per_day
+            else:
+                state[work.block_group_idx, work.latest_finish - work.lead_time:work.latest_finish + 1] = work.work_load_per_day
             if self._ongoing == i:
                 ongoing_location = work.start
                 ongoing_block = work.block_group_idx
                 ongoing_leadtime = work.lead_time
-                break
         left = max(0, int(ongoing_location + ongoing_leadtime / 2 - self.window_days[0] / 2))
         left = min(left, self.scheduling_manager.num_day - self.window_days[0])
         top = max(0, int(ongoing_block - self.window_days[1] / 2))
