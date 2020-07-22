@@ -181,13 +181,15 @@ class Worker():
 
 if __name__ == '__main__':
     projects = [3095]
+    initial_date, num_of_block_groups, num_of_days, schedule, relation \
+        = import_schedule('../../environment/data/191227_납기일 추가.xlsx', projects, backward=True)
 
     max_episode_length = 10000
     max_episode = 50000
     gamma = 1.0  # discount rate for advantage estimation and reward discounting
 
-    window_days = (40, 10)
-    s_shape = (window_days[1], window_days[0])
+    window = (40, 10)
+    s_shape = (window[1], window[0])
     a_size = 2
 
     load_model = False
@@ -216,8 +218,7 @@ if __name__ == '__main__':
             num_workers = 8
         # Create worker classes
         for i in range(num_workers):
-            scheduling_manager = SchedulingManager('../../environment/data/191227_납기일 추가.xlsx', projects, backward=True)
-            locating = Scheduling(window_days=window_days, scheduling_manager=scheduling_manager, display_env=False)
+            locating = Scheduling(num_of_days, num_of_block_groups, schedule, relation, window)
             workers.append(Worker(locating, i, s_shape, a_size, trainer, model_path, summary_path, global_episodes))
         saver = tf.train.Saver(max_to_keep=5)
 

@@ -1,94 +1,145 @@
 import pygame
+import copy
 import numpy as np
 
 
 class Scheduling(object):
-    def __init__(self, scheduling_manager=None, window_days=(20, 10), display_env=False):
+    def __init__(self, num_of_days=100, num_of_block_groups=10, schedule=None, relation=None,
+                 window=(20, 10), margin=5, backward=True, display_env=False):
         self.action_space = 2  # 좌로 이동 비활성화시 2, 활성화시 3
-        self.window_days = window_days
-        self.scheduling_manager = scheduling_manager
-        self.empty = 0
+        self.num_of_days = num_of_days
+        self.num_of_block_groups = num_of_block_groups
+        self.window = window
+        self.schedule = schedule
+        self.schedule_clone = copy.copy(schedule)
+        self.relation = relation
+        self.margin = margin
         self.stage = 0
         self._ongoing = 0
         self.left_action = 2
         self.right_action = 0
         self.select_action = 1
-        if self.scheduling_manager.backward:
+        self.backward = backward
+        if backward:
             self.left_action, self.right_action = self.right_action, self.left_action
         if display_env:
-            display = LocatingDisplay(self, self.scheduling_manager.num_day, self.scheduling_manager.num_block_group)
+            display = LocatingDisplay(self, num_of_days, num_of_block_groups)
             display.game_loop_from_space()
 
     def step(self, action):
         done = False
         self.stage += 1
         reward = 0
-        current_work = self.scheduling_manager.works[self._ongoing]
         if action == self.select_action:  # 일정 확정
-            reward = self._calculate_reward()
+            self._set_constraint(self._ongoing)
+            reward = self._calculate_reward_by_deviation()
             self._ongoing += 1
-            if self._ongoing == self.scheduling_manager.num_work:
+            if self._ongoing == self.num_of_block_groups:
                 done = True
             else:
-                next_work = self.scheduling_manager.works[self._ongoing]
-                if self.scheduling_manager.backward:
-                    next_work.start = next_work.latest_finish - next_work.lead_time + 1
+                if self.backward:
+                    self.schedule.loc[self._ongoing, 'start'] = self.schedule.loc[self._ongoing, 'latest_finish'] \
+                                                                - self.schedule.loc[self._ongoing, 'lead_time']
                 else:
-                    next_work.start = next_work.earlist_start
+                    self.schedule.loc[self._ongoing, 'start'] = self.schedule.loc[self._ongoing, 'earliest_start'] + 1
         else:  # 일정 이동
             if action == self.left_action:  # 좌로 이동
-                if current_work.start > current_work.earliest_start:
-                    current_work.start -= 1
+                if self.schedule.loc[self._ongoing, 'start'] > self.schedule.loc[self._ongoing, 'earliest_start'] + 1:
+                    self.schedule.loc[self._ongoing, 'start'] -= 1
+                else:
+                    reward = -1
             elif action == self.right_action:  # 우로 이동
-                if current_work.start + current_work.lead_time < current_work.latest_finish:
-                    current_work.start += 1
+                if self.schedule.loc[self._ongoing, 'start'] + self.schedule.loc[self._ongoing, 'lead_time'] \
+                        < self.schedule.loc[self._ongoing, 'latest_finish']:
+                    self.schedule.loc[self._ongoing, 'start'] += 1
+                else:
+                    reward = -1
+        if done:
+            self._ongoing -= 1
         next_state = self.get_state().flatten()
-        if self.stage == 50000:
-            done = True
-        if not done:
-            self.scheduling_manager.set_constraint(self._ongoing)
         return next_state, reward, done
 
     def reset(self):
-        self.scheduling_manager.reset_schedule()
+        self.schedule = copy.copy(self.schedule_clone)
         self.stage = 0
         self._ongoing = 0
+        if self.backward:
+            self.schedule.loc[self._ongoing, 'start'] = self.schedule.loc[self._ongoing, 'latest_finish'] \
+                                                        - self.schedule.loc[self._ongoing, 'lead_time']
+        else:
+            self.schedule.loc[self._ongoing, 'start'] = self.schedule.loc[self._ongoing, 'earliest_start'] + 1
         return self.get_state().flatten()
 
     def get_state(self):
-        state = np.full([self.scheduling_manager.num_block_group, self.scheduling_manager.num_day], 0)
-        ongoing_location = self.scheduling_manager.works[-1].start
-        ongoing_block = self.scheduling_manager.works[-1].block_group_idx
-        ongoing_leadtime = self.scheduling_manager.works[-1].lead_time
-        for i, work in enumerate(self.scheduling_manager.works):
+        state = np.full([self.num_of_block_groups, self.num_of_days], 0.0)
+        ongoing_location = self.schedule.iloc[-1].start
+        ongoing_block = self.schedule.iloc[-1].block_group_idx
+        ongoing_lead_time = self.schedule.iloc[-1].lead_time
+        for i, work in self.schedule.iterrows():
             if work.start:
-                state[work.block_group_idx, work.start:work.start + work.lead_time] = work.work_load_per_day
+                state[work.block_group_idx, work.start:work.start + work.lead_time] += work.work_load / work.lead_time
             else:
-                state[work.block_group_idx, work.latest_finish - work.lead_time:work.latest_finish + 1] = work.work_load_per_day
+                state[work.block_group_idx, work.latest_finish - work.lead_time:work.latest_finish] += \
+                    work.work_load / work.lead_time
             if self._ongoing == i:
                 ongoing_location = work.start
                 ongoing_block = work.block_group_idx
-                ongoing_leadtime = work.lead_time
-        left = max(0, int(ongoing_location + ongoing_leadtime / 2 - self.window_days[0] / 2))
-        left = min(left, self.scheduling_manager.num_day - self.window_days[0])
-        top = max(0, int(ongoing_block - self.window_days[1] / 2))
-        top = min(top, self.scheduling_manager.num_block_group - self.window_days[1])
-        state = state[top:top + self.window_days[1], left:left + self.window_days[0]]
+                ongoing_lead_time = work.lead_time
+        left = max(0, int(ongoing_location + ongoing_lead_time / 2 - self.window[0] / 2))
+        left = min(left, self.num_of_days - self.window[0])
+        top = max(0, int(ongoing_block - self.window[1] / 2))
+        top = min(top, self.num_of_block_groups - self.window[1])
+        state = state[top:top + self.window[1], left:left + self.window[0]]
         return state
+
+    def _set_constraint(self, ongoing):
+        ongoing_block_group = self.schedule[self.schedule['block_group'] == self.schedule.loc[ongoing, 'block_group']]
+        for i, row in self.relation.iterrows():
+            if self.schedule.loc[ongoing, 'process'] == row['activityA']:
+                indices = ongoing_block_group[ongoing_block_group['process'] == row['activityB']].index.values
+                for idx in indices:
+                    if row['relation'] == 'FS':
+                        es = max(self.schedule.loc[ongoing, 'start'] + self.schedule.loc[ongoing, 'lead_time'] - 1,
+                                 self.schedule.loc[idx, 'earliest_start'])
+                        lf = min(self.schedule.loc[ongoing, 'start'] + self.schedule.loc[ongoing, 'lead_time']
+                                 + self.schedule.loc[idx, 'lead_time'] + self.margin,
+                                 self.schedule.loc[idx, 'latest_finish'])
+                    else:
+                        es = max(self.schedule.loc[ongoing, 'start'] + self.schedule.loc[ongoing, 'lead_time']
+                                 - self.schedule.loc[idx, 'lead_time'] - 1,
+                                 self.schedule.loc[idx, 'earliest_start'])
+                        lf = min(self.schedule.loc[ongoing, 'start'] + self.schedule.loc[idx, 'lead_time'],
+                                 self.schedule.loc[idx, 'latest_finish'])
+                    self.schedule.loc[idx, 'earliest_start'] = es
+                    self.schedule.loc[idx, 'latest_finish'] = lf
+            elif self.schedule.loc[ongoing, 'process'] == row['activityB']:
+                indices = ongoing_block_group[ongoing_block_group['process'] == row['activityA']].index.values
+                for idx in indices:
+                    if row['relation'] == 'FS':
+                        es = max(self.schedule.loc[ongoing, 'start'] - self.schedule.loc[idx, 'lead_time']
+                                 - 1 - self.margin,
+                                 self.schedule.loc[idx, 'earliest_start'])
+                        lf = min(self.schedule.loc[ongoing, 'start'], self.schedule.loc[idx, 'latest_finish'])
+                    else:
+                        es = max(self.schedule.loc[ongoing, 'start'] - 1, self.schedule.loc[idx, 'earliest_start'])
+                        lf = min(self.schedule.loc[ongoing, 'start'] + self.schedule.loc[ongoing, 'lead_time'],
+                                 self.schedule.loc[idx, 'latest_finish'])
+                    self.schedule.loc[idx, 'earliest_start'] = es
+                    self.schedule.loc[idx, 'latest_finish'] = lf
 
     def _calculate_reward(self):
         state = self.get_state()
-        last_work = self.scheduling_manager.works[self._ongoing].start
-        lead_time = self.scheduling_manager.works[self._ongoing].lead_time
+        last_work = self.schedule[self._ongoing].start
+        lead_time = self.schedule[self._ongoing].lead_time
         loads = np.sum(state, axis=0)
         loads_last_work = loads[last_work:last_work + lead_time]
         score1 = 1
         score2 = -1
         reward = 0
         for load in loads_last_work:
-            if load <= self.scheduling_manager.target_load_per_day:
+            if load <= self.schedule.target_load_per_day:
                 reward += score1
-            elif load > self.scheduling_manager.target_load_per_day:
+            elif load > self.schedule.target_load_per_day:
                 reward += score2
         return reward
 
@@ -100,8 +151,8 @@ class Scheduling(object):
 
     def _calculate_reward_by_local_deviation(self):
         state = self.get_state()
-        last_work = self.scheduling_manager.works[self._ongoing].start
-        lead_time = self.scheduling_manager.works[self._ongoing].lead_time
+        last_work = self.schedule[self._ongoing].start
+        lead_time = self.schedule[self._ongoing].lead_time
         loads = np.sum(state, axis=0)
         loads_last_work = loads[last_work:last_work + lead_time]
         deviation = max(0.2, float(np.std(loads_last_work)))
