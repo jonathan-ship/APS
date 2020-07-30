@@ -172,7 +172,7 @@ class Worker():
 
 if __name__ == '__main__':
     projects = [3095]
-    works = import_schedule('../../environment/data/191227_납기일 추가.xlsx', projects)
+    works, max_day = import_schedule('../../environment/data/191227_납기일 추가.xlsx', projects)
 
     max_episode_length = 10000
     max_episode = 50000

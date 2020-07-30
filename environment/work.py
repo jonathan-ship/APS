@@ -1,5 +1,11 @@
+import scipy
+
+import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
+
 from collections import OrderedDict
+from PIL import Image
 
 
 def set_process_sequence(relation):
@@ -35,8 +41,12 @@ def import_schedule(filepath, projects):
     df_schedule = df_schedule.reset_index(drop=True)
 
     df_schedule['납기일'] = pd.to_datetime(df_schedule['납기일'], format='%Y%m%d')
+    df_schedule['계획착수일'] = pd.to_datetime(df_schedule['계획착수일'], format='%Y%m%d')
+    df_schedule['계획완료일'] = pd.to_datetime(df_schedule['계획완료일'], format='%Y%m%d')
     max_day = df_schedule['납기일'].max()
     df_schedule['납기일'] = (df_schedule['납기일'] - max_day).dt.days - 1
+    df_schedule['계획착수일'] = (df_schedule['계획착수일'] - max_day).dt.days - 1
+    df_schedule['셰획완료일'] = (df_schedule['계획완료일'] - max_day).dt.days - 1
 
     works = OrderedDict()
     block_group_idx = 0
@@ -70,6 +80,8 @@ def import_schedule(filepath, projects):
                         block_group.append(Work(work_id=work_id,
                                                 block=block_group_idx,
                                                 process=work_1['공정'],
+                                                start_planned=work_1['계획착수일'],
+                                                finish_planned=work_1['계획완료일'],
                                                 lead_time=work_1['계획공기'],
                                                 work_load=work_1['계획공수'] + work_2.iloc[0]['계획공수'],
                                                 latest_finish=work_1['납기일']))
@@ -80,6 +92,8 @@ def import_schedule(filepath, projects):
                 block_group.append(Work(work_id=work_1['액티비티코드'],
                                         block=block_group_idx,
                                         process=work_1['공정'],
+                                        start_planned=work_1['계획착수일'],
+                                        finish_planned=work_1['계획완료일'],
                                         lead_time=work_1['계획공기'],
                                         work_load=work_1['계획공수'],
                                         latest_finish=work_1['납기일']))
@@ -102,21 +116,69 @@ def import_schedule(filepath, projects):
         df_schedule.drop([_ for _ in range(num_of_work)], inplace=True)
         df_schedule.reset_index(drop=True, inplace=True)
         block_group_idx += 1
-    return works
+    return works, max_day
 
 
-def export_schedule(import_path, export_path, works, locations):
+def save_image(filepath, image):
+    colored_image = np.zeros([image.shape[0], image.shape[1], 3])
+    for i in range(image.shape[0]):
+        for j in range(image.shape[1]):
+            if image[i, j] == 0.0:
+                colored_image[i, j] = [0, 0, 0]
+            elif image[i, j] == -1.0:
+                colored_image[i, j] = [255, 0, 0]
+            else:
+                grey = max(0, 255 - 0.005 * 255 * image[i, j])
+                colored_image[i, j] = [grey, grey, grey]
+    big_image = scipy.misc.imresize(colored_image, [image.shape[0] * 30, image.shape[1] * 30], interp='nearest')
+    final_image = Image.fromarray(big_image.astype('uint8'), 'RGB')
+    final_image.save(filepath)
 
-    for work in works.values():
-        pass
+
+def save_graph(filepath, loads):
+    plt.plot(loads)
+    plt.savefig(filepath)
+
+
+def export_schedule(filepath, max_day, works, locations):
+
+    df_schedule = pd.DataFrame(columns=['액티비티코드', '계획공기', '계획공수', '계획착수일_초기', '계획완료일_초기',
+                                        '계획착수일_학습', '계획완료일_학습'])
+
+    for i, work in enumerate(works.values()):
+        df_schedule.loc[i] = [work.work_id, work.lead_time, work.work_load,
+                              max_day - pd.Timedelta(days=-(work.start_planned + 1)),
+                              max_day - pd.Timedelta(days=-(work.finish_planned + 1)),
+                              max_day - pd.Timedelta(days=-(locations[work.work_id] - work.lead_time + 2)),
+                              max_day - pd.Timedelta(days=-(locations[work.work_id] + 1))]
+
+    df_schedule.to_excel(filepath + "/output.xlsx")
+
+    row = list(works.values())[-1].block + 1
+    col = - min([locations[work.work_id] - work.lead_time + 1 for work in works.values()])
+    col = min([col, works.values()[-1].start_planned])
+    state_initial = np.full([row, col], 0.0)
+    state_learning = np.full([row, col], 0.0)
+
+    for i, work in enumerate(works.values()):
+        state_initial[work.block, work.latest_finish] = -1
+        state_initial[work.block, work.start_planned:work.finish_planned + 1] += work.work_load / work.lead_time
+        state_learning[work.block, work.latest_finish] = -1
+        state_learning[work.block, locations[work.work_id] - work.lead_time + 1:locations[work.work_id] + 1] \
+            += work.work_load / work.lead_time
+
+    save_image(filepath + '/initial.png', state_initial)
+    save_image(filepath + '/learning.png', state_learning)
 
 
 class Work:
-    def __init__(self, work_id=None, block=None, process=None,
-                 lead_time=1, work_load=1, earliest_start=-1, latest_finish=-1):
+    def __init__(self, work_id=None, block=None, process=None, start_planned=None, finish_planned=None,
+                 lead_time=1, work_load=1, earliest_start=None, latest_finish=None):
         self.work_id = str(work_id)
         self.block = block
         self.process = process
+        self.start_planned = start_planned
+        self.finish_planned = finish_planned
         self.lead_time = lead_time
         self.work_load = work_load
         self.earliest_start = earliest_start
@@ -125,7 +187,8 @@ class Work:
 
 
 if __name__ == '__main__':
-    inbound = import_schedule('../environment/data/191227_납기일 추가.xlsx', [3095])
+    inbound, max_day = import_schedule('../environment/data/191227_납기일 추가.xlsx', [3095])
+    print(max_day + pd.Timedelta(days=pd.Series([1, 2, 3, 4, 5])))
     for i in inbound.values():
         print("{0}|{1}: {2}, {3}, {4}".format(i.block, i.work_id, i.work_load/i.lead_time, i.process, i.relation))
     print(len(inbound))

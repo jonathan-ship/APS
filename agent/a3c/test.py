@@ -20,7 +20,7 @@ if __name__ == '__main__':
     if not os.path.exists(test_path):
         os.makedirs(test_path)
 
-    works = import_schedule('../../environment/data/191227_납기일 추가.xlsx', projects)
+    works, max_day = import_schedule('../../environment/data/191227_납기일 추가.xlsx', projects)
     env = Scheduling(works, window)
 
     tf.reset_default_graph()
@@ -34,7 +34,7 @@ if __name__ == '__main__':
         episode_frames = []
 
         while True:
-            a_dist, v, rnn_state = sess.run([network.policy, network.value], feed_dict={network.inputs: [s]})
+            a_dist, v = sess.run([network.policy, network.value], feed_dict={network.inputs: [s]})
             a = np.random.choice(a_dist[0], p=a_dist[0])
             a = np.argmax(a_dist == a)
 
@@ -43,7 +43,7 @@ if __name__ == '__main__':
             if not d:
                 episode_frames.append(s1)
             else:
-                env.export_schedule(test_path, env.location)
+                export_schedule(test_path, max_day, works, env.location)
                 break
 
             s = s1
