@@ -119,6 +119,8 @@ def color_frame_continuous(images, dim=2):
                 for j in range(images.shape[2]):
                     if images[k, i, j] == 0.0:
                         colored_images[k, i, j] = [0, 0, 0]
+                    elif images[k, i, j] == -1.0:
+                        colored_images[k, i, j] = [255, 0, 0]
                     else:
                         grey = max(0, 255 - 0.005 * 255 * images[k, i, j])
                         colored_images[k, i, j] = [grey, grey, grey]

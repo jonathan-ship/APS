@@ -73,17 +73,14 @@ class Worker():
         feed_dict = {self.local_AC.target_v: discounted_rewards,
                      self.local_AC.inputs: np.vstack(observations),
                      self.local_AC.actions: actions,
-                     self.local_AC.advantages: advantages,
-                     self.local_AC.state_in[0]: self.batch_rnn_state[0],
-                     self.local_AC.state_in[1]: self.batch_rnn_state[1]}
-        v_l, p_l, e_l, g_n, v_n, self.batch_rnn_state, _ = sess.run([self.local_AC.value_loss,
-                                                                     self.local_AC.policy_loss,
-                                                                     self.local_AC.entropy,
-                                                                     self.local_AC.grad_norms,
-                                                                     self.local_AC.var_norms,
-                                                                     self.local_AC.state_out,
-                                                                     self.local_AC.apply_grads],
-                                                                    feed_dict=feed_dict)
+                     self.local_AC.advantages: advantages}
+        v_l, p_l, e_l, g_n, v_n, _ = sess.run([self.local_AC.value_loss,
+                                               self.local_AC.policy_loss,
+                                               self.local_AC.entropy,
+                                               self.local_AC.grad_norms,
+                                               self.local_AC.var_norms,
+                                               self.local_AC.apply_grads],
+                                              feed_dict=feed_dict)
         return v_l / len(rollout), p_l / len(rollout), e_l / len(rollout), g_n, v_n
 
     def work(self, max_episode_length, max_episode, gamma, sess, coord, saver):
@@ -102,15 +99,11 @@ class Worker():
 
                     s = self.env.reset()
                     episode_frames.append(s)
-                    rnn_state = self.local_AC.state_init
-                    self.batch_rnn_state = rnn_state
                     while True:
                         # Take an action using probabilities from policy network output.
-                        a_dist, v, rnn_state = sess.run(
-                            [self.local_AC.policy, self.local_AC.value, self.local_AC.state_out],
-                            feed_dict={self.local_AC.inputs: [s],
-                                       self.local_AC.state_in[0]: rnn_state[0],
-                                       self.local_AC.state_in[1]: rnn_state[1]})
+                        a_dist, v = sess.run(
+                            [self.local_AC.policy, self.local_AC.value],
+                            feed_dict={self.local_AC.inputs: [s]})
                         a = np.random.choice(a_dist[0], p=a_dist[0])
                         a = np.argmax(a_dist == a)
 
@@ -134,9 +127,7 @@ class Worker():
                             # Since we don't know what the true final return is, we "bootstrap" from our current
                             # value estimation.
                             v1 = sess.run(self.local_AC.value,
-                                          feed_dict={self.local_AC.inputs: [s],
-                                                     self.local_AC.state_in[0]: rnn_state[0],
-                                                     self.local_AC.state_in[1]: rnn_state[1]})[0, 0]
+                                          feed_dict={self.local_AC.inputs: [s]})[0, 0]
                             v_l, p_l, e_l, g_n, v_n = self.train(episode_buffer, sess, gamma, v1)
                             episode_buffer = []
                             sess.run(self.update_local_ops)
@@ -181,15 +172,14 @@ class Worker():
 
 if __name__ == '__main__':
     projects = [3095]
-    initial_date, num_of_block_groups, num_of_days, schedule, relation \
-        = import_schedule('../../environment/data/191227_납기일 추가.xlsx', projects, backward=True)
+    works = import_schedule('../../environment/data/191227_납기일 추가.xlsx', projects)
 
     max_episode_length = 10000
     max_episode = 50000
     gamma = 1.0  # discount rate for advantage estimation and reward discounting
 
-    window = (40, 10)
-    s_shape = (window[1], window[0])
+    window = (10, 40)
+    s_shape = (window[0] + 1, window[1])
     a_size = 2
 
     load_model = False
@@ -218,7 +208,7 @@ if __name__ == '__main__':
             num_workers = 8
         # Create worker classes
         for i in range(num_workers):
-            locating = Scheduling(num_of_days, num_of_block_groups, schedule, relation, window)
+            locating = Scheduling(works, window)
             workers.append(Worker(locating, i, s_shape, a_size, trainer, model_path, summary_path, global_episodes))
         saver = tf.train.Saver(max_to_keep=5)
 
