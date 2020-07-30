@@ -46,7 +46,7 @@ def import_schedule(filepath, projects):
     max_day = df_schedule['납기일'].max()
     df_schedule['납기일'] = (df_schedule['납기일'] - max_day).dt.days - 1
     df_schedule['계획착수일'] = (df_schedule['계획착수일'] - max_day).dt.days - 1
-    df_schedule['셰획완료일'] = (df_schedule['계획완료일'] - max_day).dt.days - 1
+    df_schedule['계획완료일'] = (df_schedule['계획완료일'] - max_day).dt.days - 1
 
     works = OrderedDict()
     block_group_idx = 0
@@ -156,7 +156,7 @@ def export_schedule(filepath, max_day, works, locations):
 
     row = list(works.values())[-1].block + 1
     col = - min([locations[work.work_id] - work.lead_time + 1 for work in works.values()])
-    col = min([col, works.values()[-1].start_planned])
+    col = min([col, -list(works.values())[-1].start_planned])
     state_initial = np.full([row, col], 0.0)
     state_learning = np.full([row, col], 0.0)
 
@@ -188,7 +188,7 @@ class Work:
 
 if __name__ == '__main__':
     inbound, max_day = import_schedule('../environment/data/191227_납기일 추가.xlsx', [3095])
-    print(max_day + pd.Timedelta(days=pd.Series([1, 2, 3, 4, 5])))
+    print(max_day - pd.Timedelta(days=-(list(inbound.values())[0].finish_planned+1)))
     for i in inbound.values():
         print("{0}|{1}: {2}, {3}, {4}".format(i.block, i.work_id, i.work_load/i.lead_time, i.process, i.relation))
     print(len(inbound))
