@@ -175,7 +175,7 @@ if __name__ == '__main__':
     works, max_day = import_schedule('../../environment/data/191227_납기일 추가.xlsx', projects)
 
     max_episode_length = 10000
-    max_episode = 50000
+    max_episode = 10000
     gamma = 1.0  # discount rate for advantage estimation and reward discounting
 
     window = (10, 40)

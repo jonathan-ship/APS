@@ -136,27 +136,40 @@ def save_image(filepath, image):
 
 
 def save_graph(filepath, loads):
-    plt.plot(loads)
-    plt.savefig(filepath)
+    day = range(len(loads))
+    loads_temp = loads[np.where(loads != 0.0)]
+    load_mean = np.full([len(loads)], np.float(np.mean(loads_temp)))
+    deviation = np.std(loads_temp)
+    fig, ax = plt.subplots()
+    ax.plot(day, loads, color='dodgerblue', label='load per day')
+    ax.plot(day, load_mean, color='firebrick', label='average load per day')
+    ax.text(len(day) * 0.01, max(loads_temp) * 1.2, 'deviation: {0:0.2f}'.format(deviation))
+    ax.set_ylim([0, max(loads_temp) * 1.3])
+    ax.legend(loc='upper right')
+    ax.set_xlabel('day')
+    ax.set_ylabel('load per day')
+    ax.set_title('loads')
+    fig.savefig(filepath, bbox_inches='tight', pad_inches=0.5, edgecolor='grey')
 
 
 def export_schedule(filepath, max_day, works, locations):
 
     df_schedule = pd.DataFrame(columns=['액티비티코드', '계획공기', '계획공수', '계획착수일_초기', '계획완료일_초기',
-                                        '계획착수일_학습', '계획완료일_학습'])
+                                        '계획착수일_학습', '계획완료일_학습', '납기일'])
 
     for i, work in enumerate(works.values()):
         df_schedule.loc[i] = [work.work_id, work.lead_time, work.work_load,
-                              max_day - pd.Timedelta(days=-(work.start_planned + 1)),
-                              max_day - pd.Timedelta(days=-(work.finish_planned + 1)),
-                              max_day - pd.Timedelta(days=-(locations[work.work_id] - work.lead_time + 2)),
-                              max_day - pd.Timedelta(days=-(locations[work.work_id] + 1))]
+                              (max_day - pd.Timedelta(days=-(work.start_planned + 1))).date(),
+                              (max_day - pd.Timedelta(days=-(work.finish_planned + 1))).date(),
+                              (max_day - pd.Timedelta(days=-(locations[work.work_id] - work.lead_time + 2))).date(),
+                              (max_day - pd.Timedelta(days=-(locations[work.work_id] + 1))).date(),
+                              (max_day - pd.Timedelta(days=-(work.latest_finish + 1))).date()]
 
     df_schedule.to_excel(filepath + "/output.xlsx")
 
     row = list(works.values())[-1].block + 1
     col = - min([locations[work.work_id] - work.lead_time + 1 for work in works.values()])
-    col = min([col, -list(works.values())[-1].start_planned])
+    col = max([col, -list(works.values())[-1].start_planned])
     state_initial = np.full([row, col], 0.0)
     state_learning = np.full([row, col], 0.0)
 
@@ -167,8 +180,14 @@ def export_schedule(filepath, max_day, works, locations):
         state_learning[work.block, locations[work.work_id] - work.lead_time + 1:locations[work.work_id] + 1] \
             += work.work_load / work.lead_time
 
-    save_image(filepath + '/initial.png', state_initial)
-    save_image(filepath + '/learning.png', state_learning)
+    save_image(filepath + '/gantt_initial.png', state_initial)
+    save_image(filepath + '/gantt_learning.png', state_learning)
+
+    state_initial[state_initial == -1] = 0.0
+    state_learning[state_learning == -1] = 0.0
+
+    save_graph(filepath + '/loads_initial.png', np.sum(state_initial, axis=0))
+    save_graph(filepath + '/loads_learning.png', np.sum(state_learning, axis=0))
 
 
 class Work:
@@ -188,8 +207,10 @@ class Work:
 
 if __name__ == '__main__':
     inbound, max_day = import_schedule('../environment/data/191227_납기일 추가.xlsx', [3095])
-    print(max_day - pd.Timedelta(days=-(list(inbound.values())[0].finish_planned+1)))
+    print((max_day - pd.Timedelta(days=-(list(inbound.values())[0].finish_planned+1))).date())
     for i in inbound.values():
         print("{0}|{1}: {2}, {3}, {4}".format(i.block, i.work_id, i.work_load/i.lead_time, i.process, i.relation))
     print(len(inbound))
+
+    save_graph('../test/a3c/10-40' + '/loads_learning.png', np.array([1, 2, 3, 5, 7, 0, 0]))
 

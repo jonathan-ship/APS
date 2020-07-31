@@ -8,7 +8,7 @@ from environment.work import *
 
 
 if __name__ == '__main__':
-    projects = [2962, 3086, 3095]
+    projects = [3095]
 
     window = (10, 40)
     s_shape = (window[0] + 1, window[1])

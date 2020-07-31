@@ -138,9 +138,8 @@ class Scheduling(object):
             state = state[1:]
         loads = np.sum(state, axis=0)
         deviation = np.std(loads)
-        reward = - deviation / 10
+        reward = 100 / deviation
         return reward
-
 
     def _calculate_reward(self):
         state = self._get_state()
