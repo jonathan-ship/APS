@@ -137,14 +137,14 @@ def save_image(filepath, image):
 
 def save_graph(filepath, loads):
     day = range(len(loads))
-    loads_temp = loads[np.where(loads != 0.0)]
-    load_mean = np.full([len(loads)], np.float(np.mean(loads_temp)))
-    deviation = np.std(loads_temp)
+    idx = np.where(loads != 0.0)
+    load_mean = np.full([len(loads)], np.float(np.mean(loads[idx[0]:idx[-1] + 1])))
+    deviation = np.std(loads[idx[0]:idx[-1] + 1])
     fig, ax = plt.subplots()
     ax.plot(day, loads, color='dodgerblue', label='load per day')
     ax.plot(day, load_mean, color='firebrick', label='average load per day')
-    ax.text(len(day) * 0.01, max(loads_temp) * 1.2, 'deviation: {0:0.2f}'.format(deviation))
-    ax.set_ylim([0, max(loads_temp) * 1.3])
+    ax.text(len(day) * 0.01, max(loads[idx[0]:idx[-1] + 1]) * 1.2, 'deviation: {0:0.2f}'.format(deviation))
+    ax.set_ylim([0, max(loads[idx[0]:idx[-1] + 1]) * 1.3])
     ax.legend(loc='upper right')
     ax.set_xlabel('day')
     ax.set_ylabel('load per day')
