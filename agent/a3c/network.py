@@ -28,15 +28,14 @@ class AC_Network():
                                      inputs=self.conv1, num_outputs=64,
                                      kernel_size=[2, 2], stride=[1, 1], padding='SAME')
             hidden1 = slim.fully_connected(slim.flatten(self.conv2), 512, activation_fn=tf.nn.relu)
-            hidden2 = slim.fully_connected(hidden1, 512, activation_fn=tf.nn.relu)
-            hidden3 = slim.fully_connected(hidden2, 256, activation_fn=tf.nn.relu)
+            hidden2 = slim.fully_connected(hidden1, 256, activation_fn=tf.nn.relu)
 
             # Output layers for policy and value estimations
-            self.policy = slim.fully_connected(hidden3, a_size,
+            self.policy = slim.fully_connected(hidden2, a_size,
                                                activation_fn=tf.nn.softmax,
                                                weights_initializer=normalized_columns_initializer(0.01),
                                                biases_initializer=None)
-            self.value = slim.fully_connected(hidden3, 1,
+            self.value = slim.fully_connected(hidden2, 1,
                                               activation_fn=None,
                                               weights_initializer=normalized_columns_initializer(1.0),
                                               biases_initializer=None)
