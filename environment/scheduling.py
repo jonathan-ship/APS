@@ -40,9 +40,9 @@ class Scheduling(object):
                         self.location_updated[work.work_id] = self.location[work.work_id] - 1
                         self._update_location(work)
                     else:
-                        reward = -10
+                        reward = -1
             else:
-                reward = -10
+                reward = -1
             if self.move:
                 for (key, value) in self.location_updated.items():
                     self.location[key] = value
@@ -159,14 +159,14 @@ class Scheduling(object):
 
 if __name__ == '__main__':
     from environment.work import *
-    inbound = import_schedule('../environment/data/191227_납기일 추가.xlsx', [3095])
-    scheduling = Scheduling(inbound_works=inbound)
+    inbound, max_day = import_schedule('../environment/data/191227_납기일 추가.xlsx', [2962])
+    scheduling = Scheduling(inbound_works=inbound, window=(15, 50))
     s = scheduling.reset()
     for i in range(50):
         print(i)
         s_next, r, d = scheduling.step(1)
         print(r)
         s = s_next
+        print(s)
         if d:
             break
-    print(s)

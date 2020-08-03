@@ -137,7 +137,7 @@ def save_image(filepath, image):
 
 def save_graph(filepath, loads):
     day = range(len(loads))
-    idx = np.where(loads != 0.0)
+    idx = np.where(loads != 0.0)[0]
     load_mean = np.full([len(loads)], np.float(np.mean(loads[idx[0]:idx[-1] + 1])))
     deviation = np.std(loads[idx[0]:idx[-1] + 1])
     fig, ax = plt.subplots()

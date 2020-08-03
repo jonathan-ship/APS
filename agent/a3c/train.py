@@ -178,7 +178,7 @@ if __name__ == '__main__':
     max_episode = 10000
     gamma = 1.0  # discount rate for advantage estimation and reward discounting
 
-    window = (10, 40)
+    window = (15, 50)
     s_shape = (window[0] + 1, window[1])
     a_size = 2
 
