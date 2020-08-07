@@ -18,24 +18,20 @@ class AC_Network():
             # Input and visual encoding layers
             self.inputs = tf.placeholder(shape=[None, s_shape[0] * s_shape[1]], dtype=tf.float32)
             self.imageIn = tf.reshape(self.inputs, shape=[-1, s_shape[0], s_shape[1], 1])
-            self.conv1 = slim.conv2d(activation_fn=tf.nn.relu,
+            self.conv1 = slim.conv2d(activation_fn=tf.nn.elu,
                                      inputs=self.imageIn, num_outputs=32,
                                      kernel_size=[8, 8], stride=[4, 4], padding='SAME')
-            self.conv2 = slim.conv2d(activation_fn=tf.nn.relu,
+            self.conv2 = slim.conv2d(activation_fn=tf.nn.elu,
                                      inputs=self.conv1, num_outputs=64,
                                      kernel_size=[4, 4], stride=[2, 2], padding='SAME')
-            self.conv3 = slim.conv2d(activation_fn=tf.nn.relu,
-                                     inputs=self.conv2, num_outputs=64,
-                                     kernel_size=[2, 2], stride=[1, 1], padding='SAME')
-            hidden1 = slim.fully_connected(slim.flatten(self.conv3), 512, activation_fn=tf.nn.relu)
-            hidden2 = slim.fully_connected(hidden1, 256, activation_fn=tf.nn.relu)
+            hidden = slim.fully_connected(slim.flatten(self.conv2), 256, activation_fn=tf.nn.elu)
 
             # Output layers for policy and value estimations
-            self.policy = slim.fully_connected(hidden2, a_size,
+            self.policy = slim.fully_connected(hidden, a_size,
                                                activation_fn=tf.nn.softmax,
                                                weights_initializer=normalized_columns_initializer(0.01),
                                                biases_initializer=None)
-            self.value = slim.fully_connected(hidden2, 1,
+            self.value = slim.fully_connected(hidden, 1,
                                               activation_fn=None,
                                               weights_initializer=normalized_columns_initializer(1.0),
                                               biases_initializer=None)
