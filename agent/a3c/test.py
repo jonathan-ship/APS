@@ -8,9 +8,9 @@ from environment.work import *
 
 
 if __name__ == '__main__':
-    projects = [3095, 3086]
+    projects = [3095, 3086, 2962]
 
-    window = (15, 50)
+    window = (10, 40)
     s_shape = (window[0] + 1, window[1])
     a_size = 2
 

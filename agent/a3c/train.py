@@ -101,11 +101,14 @@ class Worker():
                     episode_frames.append(s)
                     while True:
                         # Take an action using probabilities from policy network output.
-                        a_dist, v = sess.run(
-                            [self.local_AC.policy, self.local_AC.value],
-                            feed_dict={self.local_AC.inputs: [s]})
-                        a = np.random.choice(a_dist[0], p=a_dist[0])
-                        a = np.argmax(a_dist == a)
+                        try:
+                            a_dist, v = sess.run(
+                                [self.local_AC.policy, self.local_AC.value],
+                                feed_dict={self.local_AC.inputs: [s]})
+                            a = np.random.choice(a_dist[0], p=a_dist[0])
+                            a = np.argmax(a_dist == a)
+                        except:
+                            print(s)
 
                         s1, r, d = self.env.step(a)
                         if not d:
@@ -144,7 +147,7 @@ class Worker():
 
                     # Periodically save gifs of episodes, model parameters, and summary statistics.
                     if episode_count % 5 == 0 and episode_count != 0:
-                        if self.name == 'worker_0' and episode_count % 10 == 0:
+                        if self.name == 'worker_0' and episode_count % 100 == 0:
                             save_gif(episode_frames, self.s_shape, episode_count, 'a3c')
                         if episode_count % 250 == 0 and self.name == 'worker_0':
                             saver.save(sess, self.model_path + '/model-' + str(episode_count) + '.cptk')
@@ -175,10 +178,10 @@ if __name__ == '__main__':
     works, max_day = import_schedule('../../environment/data/191227_납기일 추가.xlsx', projects)
 
     max_episode_length = 10000
-    max_episode = 10000
+    max_episode = 20000
     gamma = 1.0  # discount rate for advantage estimation and reward discounting
 
-    window = (15, 50)
+    window = (10, 40)
     s_shape = (window[0] + 1, window[1])
     a_size = 2
 
