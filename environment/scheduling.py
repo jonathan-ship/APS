@@ -10,6 +10,7 @@ class Scheduling(object):
         self.inbound_works = inbound_works
         self.inbound_works_clone = copy.copy(inbound_works)
         self.margin = margin
+        self.deviation = 0.0
         self.stage = 0
         self._ongoing = 0
         self.move = True
@@ -20,6 +21,7 @@ class Scheduling(object):
         self.select_action = 1
 
     def step(self, action):
+        info = True
         done = False
         reward = 0
         self.stage += 1
@@ -31,7 +33,8 @@ class Scheduling(object):
             if self._ongoing == len(self.inbound_works):
                 done = True
         else:
-            if self.location[work.work_id] > self.constraint[work.work_id][1] - self.margin - 1:
+            margin = self.margin * 3 if self.constraint[work.work_id][1] == work.latest_finish else self.margin
+            if self.location[work.work_id] > self.constraint[work.work_id][1] - margin - 1:
                 if not self.constraint[work.work_id][0]:
                     self.location_updated[work.work_id] = self.location[work.work_id] - 1
                     self._update_location(work)
@@ -40,19 +43,21 @@ class Scheduling(object):
                         self.location_updated[work.work_id] = self.location[work.work_id] - 1
                         self._update_location(work)
                     else:
-                        reward = -1
+                        self.move = False
             else:
-                reward = -1
+                self.move = False
+            info = self.move
             if self.move:
                 for (key, value) in self.location_updated.items():
                     self.location[key] = value
             self.move = True
             self.location_updated = dict()
         next_state = self._get_state().flatten()
-        return next_state, reward, done
+        return next_state, reward, done, info
 
     def reset(self):
         self.inbound_works = copy.copy(self.inbound_works_clone)
+        self.deviation = 0.0
         self.stage = 0
         self._ongoing = 0
         self.location = dict()
@@ -76,17 +81,22 @@ class Scheduling(object):
         col = - min([self.location[work.work_id] - work.lead_time + 1 for work in self.inbound_works.values()])
         state = np.full([row, col], 0.0)
         ongoing_state = np.full([1, col], 0.0)
+        total_work_load_state = np.full([1, col], 0.0)
         ongoing_location = self.location[list(self.inbound_works.values())[-1].work_id]
         ongoing_block = list(self.inbound_works.values())[-1].block
         for i, work in enumerate(self.inbound_works.values()):
             state[work.block, work.latest_finish] = -1
             state[work.block, self.location[work.work_id] - work.lead_time + 1:self.location[work.work_id] + 1] \
                 += work.work_load / work.lead_time
+            total_work_load_state[0, self.location[work.work_id] - work.lead_time + 1:self.location[work.work_id] + 1] \
+                += work.work_load / work.lead_time
             if self._ongoing == i:
                 ongoing_state[0, self.location[work.work_id] - work.lead_time + 1:self.location[work.work_id] + 1] \
                     += work.work_load / work.lead_time
                 ongoing_location = self.location[work.work_id]
                 ongoing_block = work.block
+        idx = np.where(total_work_load_state != 0.0)[0]
+        self.deviation = np.std(total_work_load_state[idx[0]:idx[-1] + 1])
         right = min(0, int(ongoing_location + self.num_of_days / 2))
         right = max(right, - col + self.num_of_days)
         top = max(0, int(ongoing_block - self.num_of_blocks / 2))
@@ -94,10 +104,12 @@ class Scheduling(object):
         if right == 0:
             state = state[top:top + self.num_of_blocks, right - self.num_of_days:]
             ongoing_state = ongoing_state[:, right - self.num_of_days:]
+            total_work_load_state = total_work_load_state[:, right - self.num_of_days:]
         else:
             state = state[top:top + self.num_of_blocks, right - self.num_of_days:right]
             ongoing_state = ongoing_state[:, right - self.num_of_days:right]
-        state = np.concatenate((ongoing_state, state), axis=0)
+            total_work_load_state = total_work_load_state[:, right - self.num_of_days:right]
+        state = np.concatenate((ongoing_state, state, total_work_load_state), axis=0)
         return state
 
     def _update_location(self, work):
@@ -137,8 +149,9 @@ class Scheduling(object):
         else:
             state = state[1:]
         loads = np.sum(state, axis=0)
-        deviation = np.std(loads)
-        reward = 100 / deviation
+        idx = np.where(loads != 0.0)[0]
+        deviation = np.std(loads[idx[0]:idx[-1] + 1])
+        reward = 100 / deviation if deviation != 0.0 else 100
         return reward
 
     def _calculate_reward(self):
@@ -160,11 +173,11 @@ class Scheduling(object):
 if __name__ == '__main__':
     from environment.work import *
     inbound, max_day = import_schedule('../environment/data/191227_납기일 추가.xlsx', [2962])
-    scheduling = Scheduling(inbound_works=inbound, window=(15, 50))
+    scheduling = Scheduling(inbound_works=inbound, window=(10, 40))
     s = scheduling.reset()
     for i in range(50):
         print(i)
-        s_next, r, d = scheduling.step(1)
+        s_next, r, d, _ = scheduling.step(1)
         print(r)
         s = s_next
         print(s)

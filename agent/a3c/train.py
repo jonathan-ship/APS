@@ -42,6 +42,7 @@ class Worker():
         self.trainer = trainer
         self.global_episodes = global_episodes
         self.increment = self.global_episodes.assign_add(1)
+        self.episode_deviations = []
         self.episode_rewards = []
         self.episode_lengths = []
         self.episode_mean_values = []
@@ -101,16 +102,13 @@ class Worker():
                     episode_frames.append(s)
                     while True:
                         # Take an action using probabilities from policy network output.
-                        try:
-                            a_dist, v = sess.run(
-                                [self.local_AC.policy, self.local_AC.value],
-                                feed_dict={self.local_AC.inputs: [s]})
-                            a = np.random.choice(a_dist[0], p=a_dist[0])
-                            a = np.argmax(a_dist == a)
-                        except:
-                            print(s)
+                        a_dist, v = sess.run(
+                            [self.local_AC.policy, self.local_AC.value],
+                            feed_dict={self.local_AC.inputs: [s]})
+                        a = np.random.choice(a_dist[0], p=a_dist[0])
+                        a = np.argmax(a_dist == a)
 
-                        s1, r, d = self.env.step(a)
+                        s1, r, d, _ = self.env.step(a)
                         if not d:
                             episode_frames.append(s1)
                         else:
@@ -137,6 +135,7 @@ class Worker():
                         if d:
                             break
 
+                    self.episode_deviations.append(self.env.deviation)
                     self.episode_rewards.append(episode_reward)
                     self.episode_lengths.append(episode_step_count)
                     self.episode_mean_values.append(np.mean(episode_values))
@@ -153,10 +152,12 @@ class Worker():
                             saver.save(sess, self.model_path + '/model-' + str(episode_count) + '.cptk')
                             print("Saved Model at episode %d" % episode_count)
 
+                        mean_deviation = np.mean(self.episode_deviations[-5:])
                         mean_reward = np.mean(self.episode_rewards[-5:])
                         mean_length = np.mean(self.episode_lengths[-5:])
                         mean_value = np.mean(self.episode_mean_values[-5:])
                         summary = tf.Summary()
+                        summary.value.add(tag='Perf/Deviation', simple_value=float(mean_deviation))
                         summary.value.add(tag='Perf/Reward', simple_value=float(mean_reward))
                         summary.value.add(tag='Perf/Length', simple_value=float(mean_length))
                         summary.value.add(tag='Perf/Value', simple_value=float(mean_value))
@@ -182,7 +183,7 @@ if __name__ == '__main__':
     gamma = 1.0  # discount rate for advantage estimation and reward discounting
 
     window = (10, 40)
-    s_shape = (window[0] + 1, window[1])
+    s_shape = (window[0] + 2, window[1])
     a_size = 2
 
     load_model = False

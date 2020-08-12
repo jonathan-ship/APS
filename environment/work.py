@@ -82,7 +82,7 @@ def import_schedule(filepath, projects):
                                                 process=work_1['공정'],
                                                 start_planned=work_1['계획착수일'],
                                                 finish_planned=work_1['계획완료일'],
-                                                lead_time=work_1['계획공기'],
+                                                lead_time=work_1['계획완료일'] - work_1['계획착수일'] + 1,
                                                 work_load=work_1['계획공수'] + work_2.iloc[0]['계획공수'],
                                                 latest_finish=work_1['납기일']))
                 else:
@@ -94,7 +94,7 @@ def import_schedule(filepath, projects):
                                         process=work_1['공정'],
                                         start_planned=work_1['계획착수일'],
                                         finish_planned=work_1['계획완료일'],
-                                        lead_time=work_1['계획공기'],
+                                        lead_time=work_1['계획완료일'] - work_1['계획착수일'] + 1,
                                         work_load=work_1['계획공수'],
                                         latest_finish=work_1['납기일']))
             if block_group[-1].process in list(block_group_process.keys()):

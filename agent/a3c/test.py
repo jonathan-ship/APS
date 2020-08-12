@@ -11,7 +11,7 @@ if __name__ == '__main__':
     projects = [3095, 3086, 2962]
 
     window = (10, 40)
-    s_shape = (window[0] + 1, window[1])
+    s_shape = (window[0] + 2, window[1])
     a_size = 2
 
     model_path = '../../model/a3c/%d-%d' % s_shape
@@ -37,10 +37,10 @@ if __name__ == '__main__':
             a_dist, v = sess.run([network.policy, network.value], feed_dict={network.inputs: [s]})
             a = np.argmax(a_dist[0])
 
-            s1, r, d = env.step(a)
+            s1, r, d, info = env.step(a)
 
-            if r == -1:
-                s1, r, d = env.step(1)
+            if not info:
+                s1, r, d, info = env.step(1)
 
             if not d:
                 episode_frames.append(s1)
