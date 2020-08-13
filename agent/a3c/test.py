@@ -1,4 +1,5 @@
 import os
+import copy
 import tensorflow as tf
 import numpy as np
 
@@ -31,6 +32,7 @@ if __name__ == '__main__':
         saver.restore(sess, ckpt.model_checkpoint_path)
 
         s = env.reset()
+        locations_initial = copy.copy(env.locations)
         episode_frames = []
 
         while True:
@@ -45,7 +47,7 @@ if __name__ == '__main__':
             if not d:
                 episode_frames.append(s1)
             else:
-                export_schedule(test_path, max_day, works, env.location)
+                export_schedule(test_path, max_day, works, locations_initial, env.locations)
                 break
 
             s = s1

@@ -152,42 +152,51 @@ def save_graph(filepath, loads):
     fig.savefig(filepath, bbox_inches='tight', pad_inches=0.5, edgecolor='grey')
 
 
-def export_schedule(filepath, max_day, works, locations):
+def export_schedule(filepath, max_day, works, locations_initial, locations_final):
 
     df_schedule = pd.DataFrame(columns=['액티비티코드', '계획공기', '계획공수', '계획착수일_초기', '계획완료일_초기',
-                                        '계획착수일_학습', '계획완료일_학습', '납기일'])
+                                        '계획착수일_학습초기', '계획완료일_학습초기', '계획착수일_학습완료', '계획완료일_학습완료', '납기일'])
 
     for i, work in enumerate(works.values()):
         df_schedule.loc[i] = [work.work_id, work.lead_time, work.work_load,
                               (max_day - pd.Timedelta(days=-(work.start_planned + 1))).date(),
                               (max_day - pd.Timedelta(days=-(work.finish_planned + 1))).date(),
-                              (max_day - pd.Timedelta(days=-(locations[work.work_id] - work.lead_time + 2))).date(),
-                              (max_day - pd.Timedelta(days=-(locations[work.work_id] + 1))).date(),
+                              (max_day - pd.Timedelta(days=-(locations_initial[work.work_id] - work.lead_time + 2))).date(),
+                              (max_day - pd.Timedelta(days=-(locations_initial[work.work_id] + 1))).date(),
+                              (max_day - pd.Timedelta(days=-(locations_final[work.work_id] - work.lead_time + 2))).date(),
+                              (max_day - pd.Timedelta(days=-(locations_final[work.work_id] + 1))).date(),
                               (max_day - pd.Timedelta(days=-(work.latest_finish + 1))).date()]
 
     df_schedule.to_excel(filepath + "/output.xlsx")
 
     row = list(works.values())[-1].block + 1
-    col = - min([locations[work.work_id] - work.lead_time + 1 for work in works.values()])
+    col = - min([locations_final[work.work_id] - work.lead_time + 1 for work in works.values()])
     col = max([col, -list(works.values())[-1].start_planned])
     state_initial = np.full([row, col], 0.0)
-    state_learning = np.full([row, col], 0.0)
+    state_learning_initial = np.full([row, col], 0.0)
+    state_learning_final = np.full([row, col], 0.0)
 
     for i, work in enumerate(works.values()):
         state_initial[work.block, work.latest_finish] = -1
         state_initial[work.block, work.start_planned:work.finish_planned + 1] += work.work_load / work.lead_time
-        state_learning[work.block, work.latest_finish] = -1
-        state_learning[work.block, locations[work.work_id] - work.lead_time + 1:locations[work.work_id] + 1] \
-            += work.work_load / work.lead_time
+        state_learning_initial[work.block, work.latest_finish] = -1
+        state_learning_initial[work.block, locations_initial[work.work_id] - work.lead_time + 1:
+                                           locations_initial[work.work_id] + 1] += work.work_load / work.lead_time
+        state_learning_final[work.block, work.latest_finish] = -1
+        state_learning_final[work.block, locations_final[work.work_id] - work.lead_time + 1:
+                                         locations_final[work.work_id] + 1] += work.work_load / work.lead_time
 
     save_image(filepath + '/gantt_initial.png', state_initial)
-    save_image(filepath + '/gantt_learning.png', state_learning)
+    save_image(filepath + '/gantt_learning_initial.png', state_learning_initial)
+    save_image(filepath + '/gantt_learning_final.png', state_learning_final)
 
     state_initial[state_initial == -1] = 0.0
-    state_learning[state_learning == -1] = 0.0
+    state_learning_initial[state_learning_initial == -1] = 0.0
+    state_learning_final[state_learning_final == -1] = 0.0
 
     save_graph(filepath + '/loads_initial.png', np.sum(state_initial, axis=0))
-    save_graph(filepath + '/loads_learning.png', np.sum(state_learning, axis=0))
+    save_graph(filepath + '/loads_learning_initial.png', np.sum(state_learning_initial, axis=0))
+    save_graph(filepath + '/loads_learning_final.png', np.sum(state_learning_final, axis=0))
 
 
 class Work:

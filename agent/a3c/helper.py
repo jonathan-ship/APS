@@ -118,8 +118,11 @@ def color_frame_continuous(images, dim=2):
             for i in range(images.shape[1]):
                 for j in range(images.shape[2]):
                     if i == images.shape[1] - 1:
-                        blue = max(0, 255 - 0.002 * 255 * images[k, i, j])
-                        colored_images[k, i, j] = [0, 0, blue]
+                        if images[k, i, j] == 0.0:
+                            colored_images[k, i, j] = [0, 0, 0]
+                        else:
+                            blue = max(0, 255 - 0.002 * 255 * images[k, i, j])
+                            colored_images[k, i, j] = [0, 0, blue]
                     else:
                         if images[k, i, j] == 0.0:
                             colored_images[k, i, j] = [0, 0, 0]

@@ -14,8 +14,8 @@ class Scheduling(object):
         self.stage = 0
         self._ongoing = 0
         self.move = True
-        self.location_updated = dict()
-        self.location = dict()
+        self.locations_updated = dict()
+        self.locations = dict()
         self.constraint = dict()
         self.left_action = 0
         self.select_action = 1
@@ -34,13 +34,13 @@ class Scheduling(object):
                 done = True
         else:
             margin = self.margin * 3 if self.constraint[work.work_id][1] == work.latest_finish else self.margin
-            if self.location[work.work_id] > self.constraint[work.work_id][1] - margin - 1:
+            if self.locations[work.work_id] > self.constraint[work.work_id][1] - margin - 1:
                 if not self.constraint[work.work_id][0]:
-                    self.location_updated[work.work_id] = self.location[work.work_id] - 1
+                    self.locations_updated[work.work_id] = self.locations[work.work_id] - 1
                     self._update_location(work)
                 else:
-                    if self.location[work.work_id] - work.lead_time > self.constraint[work.work_id][0]:
-                        self.location_updated[work.work_id] = self.location[work.work_id] - 1
+                    if self.locations[work.work_id] - work.lead_time > self.constraint[work.work_id][0]:
+                        self.locations_updated[work.work_id] = self.locations[work.work_id] - 1
                         self._update_location(work)
                     else:
                         self.move = False
@@ -48,10 +48,10 @@ class Scheduling(object):
                 self.move = False
             info = self.move
             if self.move:
-                for (key, value) in self.location_updated.items():
-                    self.location[key] = value
+                for (key, value) in self.locations_updated.items():
+                    self.locations[key] = value
             self.move = True
-            self.location_updated = dict()
+            self.locations_updated = dict()
         next_state = self._get_state().flatten()
         return next_state, reward, done, info
 
@@ -60,17 +60,17 @@ class Scheduling(object):
         self.deviation = 0.0
         self.stage = 0
         self._ongoing = 0
-        self.location = dict()
+        self.locations = dict()
         for work in self.inbound_works.values():
-            if not self.location.get(work.work_id):
-                self.location[work.work_id] = work.latest_finish - 1
+            if not self.locations.get(work.work_id):
+                self.locations[work.work_id] = work.latest_finish - 1
             for key in work.relation.keys():
                 if key == 'FS':
                     for related_work_id in work.relation[key]:
-                        self.location[related_work_id] = work.latest_finish - work.lead_time - 1
+                        self.locations[related_work_id] = work.latest_finish - work.lead_time - 1
                 elif key == 'FF':
                     for related_work_id in work.relation[key]:
-                        self.location[related_work_id] = work.latest_finish - 1
+                        self.locations[related_work_id] = work.latest_finish - 1
         self.constraint = dict()
         for work in self.inbound_works.values():
             self.constraint[work.work_id] = [None, work.latest_finish]
@@ -78,22 +78,22 @@ class Scheduling(object):
 
     def _get_state(self):
         row = list(self.inbound_works.values())[-1].block + 1
-        col = - min([self.location[work.work_id] - work.lead_time + 1 for work in self.inbound_works.values()])
+        col = - min([self.locations[work.work_id] - work.lead_time + 1 for work in self.inbound_works.values()])
         state = np.full([row, col], 0.0)
         ongoing_state = np.full([1, col], 0.0)
         total_work_load_state = np.full([1, col], 0.0)
-        ongoing_location = self.location[list(self.inbound_works.values())[-1].work_id]
+        ongoing_location = self.locations[list(self.inbound_works.values())[-1].work_id]
         ongoing_block = list(self.inbound_works.values())[-1].block
         for i, work in enumerate(self.inbound_works.values()):
             state[work.block, work.latest_finish] = -1
-            state[work.block, self.location[work.work_id] - work.lead_time + 1:self.location[work.work_id] + 1] \
+            state[work.block, self.locations[work.work_id] - work.lead_time + 1:self.locations[work.work_id] + 1] \
                 += work.work_load / work.lead_time
-            total_work_load_state[0, self.location[work.work_id] - work.lead_time + 1:self.location[work.work_id] + 1] \
+            total_work_load_state[0, self.locations[work.work_id] - work.lead_time + 1:self.locations[work.work_id] + 1] \
                 += work.work_load / work.lead_time
             if self._ongoing == i:
-                ongoing_state[0, self.location[work.work_id] - work.lead_time + 1:self.location[work.work_id] + 1] \
+                ongoing_state[0, self.locations[work.work_id] - work.lead_time + 1:self.locations[work.work_id] + 1] \
                     += work.work_load / work.lead_time
-                ongoing_location = self.location[work.work_id]
+                ongoing_location = self.locations[work.work_id]
                 ongoing_block = work.block
         idx = np.where(total_work_load_state != 0.0)[0]
         self.deviation = np.std(total_work_load_state[idx[0]:idx[-1] + 1])
@@ -115,10 +115,10 @@ class Scheduling(object):
     def _update_location(self, work):
         if not work.relation.keys():
             if not self.constraint[work.work_id][0]:
-                self.location_updated[work.work_id] = self.location[work.work_id] - 1
+                self.locations_updated[work.work_id] = self.locations[work.work_id] - 1
             else:
-                if self.location[work.work_id] - work.lead_time > self.constraint[work.work_id][0]:
-                    self.location_updated[work.work_id] = self.location[work.work_id] - 1
+                if self.locations[work.work_id] - work.lead_time > self.constraint[work.work_id][0]:
+                    self.locations_updated[work.work_id] = self.locations[work.work_id] - 1
                 else:
                     self.move = False
             return
@@ -126,21 +126,21 @@ class Scheduling(object):
             for key in work.relation.keys():
                 if key == 'FS':
                     for related_work_id in work.relation[key]:
-                        self.location_updated[related_work_id] = self.location[related_work_id] - 1
+                        self.locations_updated[related_work_id] = self.locations[related_work_id] - 1
                         self._update_location(self.inbound_works[related_work_id])
                 elif key == 'FF':
                     for related_work_id in work.relation[key]:
-                        self.location_updated[related_work_id] = self.location[related_work_id] - 1
+                        self.locations_updated[related_work_id] = self.locations[related_work_id] - 1
 
     def _set_constraint(self, current_work):
         for key in current_work.relation.keys():
             if key == 'FS':
                 for related_work in current_work.relation[key]:
-                    self.constraint[related_work][1] = self.location[current_work.work_id] - current_work.lead_time + 1
+                    self.constraint[related_work][1] = self.locations[current_work.work_id] - current_work.lead_time + 1
             elif key == 'FF':
                 for related_work in current_work.relation[key]:
-                    self.constraint[related_work][0] = self.location[current_work.work_id] - current_work.lead_time
-                    self.constraint[related_work][1] = self.location[current_work.work_id] + 1
+                    self.constraint[related_work][0] = self.locations[current_work.work_id] - current_work.lead_time
+                    self.constraint[related_work][1] = self.locations[current_work.work_id] + 1
 
     def _calculate_reward_by_deviation(self):
         state = self._get_state()
