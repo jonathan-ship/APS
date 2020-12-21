@@ -135,20 +135,22 @@ def save_image(filepath, image):
     final_image.save(filepath)
 
 
-def save_graph(filepath, loads):
-    day = range(len(loads))
-    idx = np.where(loads != 0.0)[0]
-    load_mean = np.full([len(loads)], np.float(np.mean(loads[idx[0]:idx[-1] + 1])))
-    deviation = np.std(loads[idx[0]:idx[-1] + 1])
+def save_graph(filepath, loads_initial, loads_learning_start, loads_learning_finish):
+    day = range(max([len(loads_initial), len(loads_learning_start), len(loads_learning_finish)]))
+    #idx = np.where(loads != 0.0)[0]
+    #load_mean = np.full([len(loads)], np.float(np.mean(loads[idx[0]:idx[-1] + 1])))
+    #deviation = np.std(loads[idx[0]:idx[-1] + 1])
     fig, ax = plt.subplots()
-    ax.plot(day, loads, color='dodgerblue', label='load per day')
-    ax.plot(day, load_mean, color='firebrick', label='average load per day')
-    ax.text(len(day) * 0.01, max(loads[idx[0]:idx[-1] + 1]) * 1.2, 'deviation: {0:0.2f}'.format(deviation))
-    ax.set_ylim([0, max(loads[idx[0]:idx[-1] + 1]) * 1.3])
+    ax.plot(day, loads_initial, color='orange', label='initial')
+    ax.plot(day, loads_initial, color='mediumseagreen', label='rl_start')
+    ax.plot(day, loads_initial, color='cornflowerblue', label='rl_finish')
+    #ax.plot(day, load_mean, color='firebrick', label='average load per day')
+    #ax.text(len(day) * 0.01, max(loads[idx[0]:idx[-1] + 1]) * 1.2, 'deviation: {0:0.2f}'.format(deviation))
+    #ax.set_ylim([0, max(loads[idx[0]:idx[-1] + 1]) * 1.3])
     ax.legend(loc='upper right')
     ax.set_xlabel('day')
     ax.set_ylabel('load per day')
-    ax.set_title('loads')
+    ax.set_title('loads', fontsize=13, fontweight="bold")
     fig.savefig(filepath, bbox_inches='tight', pad_inches=0.5, edgecolor='grey')
 
 
@@ -194,9 +196,10 @@ def export_schedule(filepath, max_day, works, locations_initial, locations_final
     state_learning_initial[state_learning_initial == -1] = 0.0
     state_learning_final[state_learning_final == -1] = 0.0
 
-    save_graph(filepath + '/loads_initial.png', np.sum(state_initial, axis=0))
-    save_graph(filepath + '/loads_learning_initial.png', np.sum(state_learning_initial, axis=0))
-    save_graph(filepath + '/loads_learning_final.png', np.sum(state_learning_final, axis=0))
+    save_graph(filepath + '/loads_graph.png',
+               np.sum(state_initial, axis=0),
+               np.sum(state_learning_initial, axis=0),
+               np.sum(state_learning_final, axis=0))
 
 
 class Work:
