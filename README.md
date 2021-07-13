@@ -13,7 +13,7 @@
 
 The program __APS__ is the __Reinforcement Learning based Model for Gantt Planning.__
 
-__Time window scanner is used for solving scheduling problems. __
+__Time window scanner is used for solving scheduling problems.__
 
 ##  Requirements
 
