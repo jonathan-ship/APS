@@ -80,7 +80,7 @@ You can either import schedule by __target date__ or __target projects__
 
 + __Setting target date__
 
-  if you want to import training/test data by target date, you can simply send __target_start_date__ and __target_finish_date__ to __work.py__ > <function>__import_schedule_by_target_date(filepath, target_start_date, target_finish_date)__
+  If you want to import training/test data by target date, you can simply send __target_start_date__ and __target_finish_date__ to __work.py__ > <function>__import_schedule_by_target_date(filepath, target_start_date, target_finish_date)__
 
   
 
